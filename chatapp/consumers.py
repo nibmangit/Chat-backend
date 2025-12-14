@@ -1,4 +1,5 @@
 from asgiref.sync import sync_to_async
+from channels.db import database_sync_to_async
 import json
 import jwt
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -7,8 +8,7 @@ from django.conf import settings
 from urllib.parse import parse_qs 
 
 class ChatConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
-        User = self.get_user_model()
+    async def connect(self): 
         query_string = self.scope['query_string'].decode('utf-8')
         params = parse_qs(query_string)
         token = params.get('token', [None])[0] # Extract token from query params
@@ -75,7 +75,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 user_data = UserListSerializer(user).data
 
                 #save message to database
-                message = await self.create_message(user, conversation, message_content)
+                message = await self.save_message(conversation, user, message_content)
                 # Broadcast message to conversation group
                 await self.channel_layer.group_send(
                     self.room_group_name,{
@@ -97,7 +97,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         reciver_id = int(reciver_id)
                         
                         if reciver_id != self.scope['user'].id:
-                            print(f"{user_id['username']} is typing...")
+                            print(f"{user_data['username']} is typing...")
                             await self.channel_layer.group_send(
                                 self.room_group_name,{
                                     'type':'typing',
@@ -112,9 +112,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 else:
                     print("reciver_id is missing.")
             except Exception as e:
-                print(f"Error parsing reciver ID: {e}")
-            except Exception as e:
-                print(f"Error Parsing user data: {e}")
+                print(f"Error parsing reciver ID: {e}") 
     
     #helper functions
     async def chat_message(self, event):
@@ -142,17 +140,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def online_status(self, event):
         await self.send(text_data=json.dumps(event))
 
-    @sync_to_async
     def get_user_model(self):
         from django.contrib.auth import get_user_model
         return get_user_model()
     
-    @sync_to_async
-    def get_user(self, user_id):
-        User = self.get_user_model()
-        return User.objects.get(id=user_id) 
+    @database_sync_to_async
+    def get_user(self, user_id): 
+        User = self.get_user_model() 
+        return User.objects.get(id=user_id)
     
-    @sync_to_async
+    @database_sync_to_async
     def get_user_data(self, user):
         from .serializers import UserListSerializer
         return UserListSerializer(user).data
@@ -167,11 +164,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return None
         
     @sync_to_async
-    def save_message(self, conversation, user, content):
+    def save_message(self, conversation, user, message_content):
         from .models import Message
         message = Message.objects.create(
             conversation=conversation,
             sender=user,
-            content=content
+            content=message_content
         )
         return message

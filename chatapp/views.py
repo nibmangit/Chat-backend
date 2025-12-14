@@ -53,10 +53,10 @@ class MessageListCreateView(generics.ListCreateAPIView):
         return conversation.messages.order_by('timestamp')
         
     
-    def get_serializer(self):
+    def get_serializer(self, *args, **kwargs):
         if self.request.method == 'POST':
             return CreateMessageSerializer
-        return MessageSerializer
+        return MessageSerializer(*args, **kwargs)
     
     def perform_create(self, serializer):
         conversation_id = self.kwargs['conversation_id']
